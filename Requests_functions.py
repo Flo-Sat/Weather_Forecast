@@ -18,7 +18,7 @@ def query_forecast(config):
         "time": time,
         "temp": temp,
         "rain": rain
-        }))
+        }).set_index("time"))
 
 def query_station(config):
 
