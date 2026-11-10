@@ -1,34 +1,35 @@
 import schedule
 import time
+from datetime import datetime, timedelta, timezone
 from dotenv import dotenv_values
 import Requests_functions
+import requests
 import pandas as pd
 config = dotenv_values(".env") 
 
-def job():
-    forecast = Requests_functions.query_forecast(config)
-    station = Requests_functions.query_station(config)
-    return forecast,station
+def job(config):
+    parameter_ids = config["PARAMETERS"].split(", ")
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=7)
+    responses = [
+        Requests_functions.process_station(
+            requests.get(Requests_functions.construct_url(
+                config["API_KEY_STATION_KOLDING"],
+                start,
+                end,
+                parameters
+                ))) for parameters in parameter_ids]
+    return (pd.concat(responses, axis=1))
 
-def save_data(forecast,station):
-    forecast.index = pd.to_datetime(forecast.index, utc=True)
+def save_data(station):
 
-    station.index = pd.to_datetime(station.index, utc=True)
-    station = station.rename(columns={"temp_dry": "temp"})
+    station.to_pickle(f"df_weekly_{datetime.now().date()}.pickle")
 
-    forecast = forecast[forecast.index.minute == 0]
-    station = station[station.index.minute == 0].sort_index().tail(1)
-
-    print(forecast)
-    print(station)
-# schedule.every(10).minutes.do(job)
-# schedule.every().hour.do(job)
-# schedule.every().day.at("10:30").do(job)
-# schedule.every().monday.do(job)
-# schedule.every().wednesday.at("13:15").do(job)
-# schedule.every().day.at("12:42", "Europe/Amsterdam").do(job)
-# schedule.every().minute.at(":17").do(job)
+def weekly_task():
+    save_data(job(config))
 
 if __name__ == "__main__":
-    print("here")
-    save_data(*job())
+    schedule.every().wednesday.at("12:00").do(weekly_task)
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
