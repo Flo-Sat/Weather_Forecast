@@ -1,5 +1,6 @@
 from dotenv import dotenv_values
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 import requests
 import pandas as pd
 
@@ -20,21 +21,22 @@ def query_forecast(config):
         "rain": rain
         }).set_index("time"))
 
-def query_station(config):
+def construct_url (root, first, last, parameter):
+    first_ts = first.isoformat(timespec="seconds")
+    last_ts = last.isoformat(timespec="seconds")
+    return f"{root}&parameterId={parameter}&datetime={first_ts}%2B02:00/{last_ts}%2B02:00"
 
+
+def query_station(config):
     timestamp = datetime.now().isoformat(timespec="seconds")
     api_url =f"{config["API_KEY_STATION_KOLDING"]}&datetime={timestamp}%2B02:00/.."
     response = requests.get(api_url)
+    return(process_station(response))
 
-    df_data = pd.DataFrame(columns = ["temp_dry","wind_speed"])
-    observed =""
-    rows_dict={}
-    for datalist in response.json()["features"]:
-        properties = datalist["properties"]
-        if properties["observed"] != observed : 
-            observed = properties["observed"]
-        if properties["parameterId"] == "temp_dry" or properties["parameterId"] == "wind_speed":
-            rows_dict.setdefault(properties["observed"], {})[properties["parameterId"]] = properties["value"]
-    df_temp = pd.DataFrame.from_dict(rows_dict,orient="index")
-    df_data = pd.concat([df_data,df_temp])
-    return(df_data)
+
+def process_station(response):
+    rows_dict = {}
+    for feature in response.json()["features"]:
+        properties = feature["properties"]
+        rows_dict.setdefault(properties["observed"], {})[properties["parameterId"]] = properties["value"]
+    return pd.DataFrame.from_dict(rows_dict, orient="index")
